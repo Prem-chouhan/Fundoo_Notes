@@ -8,7 +8,7 @@ from registration import registration
 # sys.path.insert(0, '/home/admin-1/PycharmProjects/FunDooapp/config')
 # from db_connection import db_connection
 #
-# sys.path.insert(0, '/home/admin-1/PycharmProjects/FunDooapp/model')
+# sys.path.insert(0, '/home/admin-1/PycharmProjects/FunDooapp/models')
 # from query import DbManaged
 # from view.registration import registration
 

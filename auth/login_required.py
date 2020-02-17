@@ -1,6 +1,6 @@
 import jwt
 from view.response import Response
-from model.dbmanipulate import DbManaged
+from models.dbmanipulate import model
 from config.redis_connection import RedisService
 
 def response(success=False, message='something went wrong', data=[]):
@@ -25,11 +25,9 @@ def is_authenticated(method):
             if self.path in ['/api/note/insert', '/api/note/delete', '/api/note/update']:
                 token = self.headers['token']
                 payload = jwt.decode(token, "secret", algorithms='HS256')
-                print(payload)
                 id= payload['id']
                 redis_obj = RedisService()
                 token = redis_obj.get(id)
-                print(token, '------->token')
                 if token is None:
                     raise ValueError("You Need To Login First")
                 return method(self)

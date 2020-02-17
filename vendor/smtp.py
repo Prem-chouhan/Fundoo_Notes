@@ -6,7 +6,7 @@ import os
 
 class smtp:
 
-    def smtp(self, emailid, message):
+    def SmtpConnect(self, emailid, message):
         """
         Here message of reset link is sent to user
         email:param emailid:

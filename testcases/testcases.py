@@ -12,7 +12,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_register(self):
         with pytest.raises(FileNotFoundError):
-            obj = rg.insert_user(self)
+            obj = rg.insert(self)
             obj.register_user()
 
     # def test_login(self):

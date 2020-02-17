@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from model import dbmanipulate
+from models import dbmanipulate
 from .singleton import singleton
 
 
@@ -26,9 +26,9 @@ class DbConnect:
 
         return mydb
 
-    def queryExecute(self, sql, val):
+    def queryExecute(self, query, value):
         self.mycursor = self.connection.cursor()
-        self.mycursor.execute(sql, val)
+        self.mycursor.execute(query, value)
         self.connection.commit()
 
     def query(self, sql):

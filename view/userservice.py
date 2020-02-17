@@ -5,20 +5,24 @@ import os, \
     smtplib, \
     base64
 
-from datetime import datetime, timedelta
 from config.redis_connection import RedisService
 from view.response import Response
-from model.dbmanipulate import DbManaged
-from view.utils import response
+from models.dbmanipulate import model
+from auth.login_required import response
 from vendor.smtp import smtp
-from services.user_service import UserLogic
+from services.user import Users
+from view.utils import Utility
+from services.notes import Note
 
 JWT_SECRET = 'secret'
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 100000000
 
-object = DbManaged()
-obj = UserLogic()
+obj_model = model()
+obj_user = Users()
+my_val = Utility()
+obj_note = Note()
+
 
 class user:
 
@@ -38,24 +42,22 @@ class user:
         form_keys = list(form.keys())
         if len(form_keys) < 2:
             response_data.update({'success': False, "data": [], "message": " some values are missing"})
-            Response(self).jsonResponse(status=404, data=response_data)
+            return response_data
         data = {}
         data['email'] = form['email'].value
         data['password'] = form['password'].value
         email = data['email']
-        password = data['password']
-        id = object.read_email(email)
-        present = object.email_validate(email)
-        catch_response = obj.register_logic(data, id, present)
+        id = obj_model.read_email(email)
+        present = my_val.email_validate(email)
+        catch_response = obj_user.register(data, id, present)
         return catch_response
+
     def login_user(self):
         """
         Here User can login and if The username already exists then it will give response or else
         it will give response of Login done successfully
         no return :return:
         """
-        object = DbManaged()
-        # global jwt_token
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -63,33 +65,15 @@ class user:
                      'CONTENT_TYPE': self.headers['Content-Type'],
                      })
         form_keys = list(form.keys())
-
         if 'email' and 'password' in form_keys:
             data = {}
             data['email'] = form['email'].value
             data['password'] = form['password'].value
             email = data['email']
-            id, email = object.read_email(email=email)
-            print(id, '--------->id')
-
-            if id:
-                payload = {
-                    'id': id,
-                    'exp': datetime.utcnow() + timedelta(seconds=JWT_EXP_DELTA_SECONDS)
-                }
-
-                encoded_token = jwt.encode(payload, 'secret', 'HS256').decode('utf-8')
-
-                redis_obj = RedisService()
-                # id_key = id[0]
-                redis_obj.set(id, encoded_token)
-                print(redis_obj.get(id), '------------->r.get')
-
-                res = response(success=True, message="Login Successfully", data=[{
-                    "token": encoded_token
-                }])
-
-            Response(self).jsonResponse(status=200, data=res)
+            print(email)
+            id = obj_model.read_email(email=email)
+            response_data = obj_user.login(id)
+            return response_data
         else:
             Response(self).jsonResponse(status=400, data=response(message="credentials are missing"))
 
@@ -109,18 +93,11 @@ class user:
         data = {}
         data['email'] = form['email'].value
         data = data['email']
-        present = object.read_email(data)
-        if not present:
-            response_data.update({"success": False, "message": "Wrong Credentials"})
-            Response(self).jsonResponse(status=202, data=response_data)
-        else:
-            encoded = jwt.encode({"email_id": data}, 'secret', algorithm='HS256').decode("utf-8")
-            message = f"http://127.0.0.1:8888/reset/?token={encoded}"
-            # email_id = data['email']
-            obj = smtp()
-            obj.smtp(data, message)
-            response_data.update({"success": True, "message": "Successfully sent mail"})
-            Response(self).jsonResponse(status=202, data=response_data)
+        schema = self.protocol_version.split('/')[0]
+        host = self.headers['host']
+        present = obj_model.read_email(data)
+        response = obj_user.forgot(schema, host, data, present)
+        return response
 
     def update_confirmation(self, key):
         """
@@ -136,58 +113,29 @@ class user:
                      })
         data = {}
         data['password'] = form['password'].value
-        object.update_password(data, key)
-        response_data = {'success': False, "data": [], "message": "Password Updated Successfully"}
-        Response(self).jsonResponse(status=404, data=response_data)
+        response_data = obj_user.reset(data, key)
+        return response_data
 
-    def insert_note(self):
-        """
-        Here record is inserted in table and response is shown
-        :return:
-        """
-        print(self.headers['token'], '---->token')
-        token = self.headers['token']
-        payload = jwt.decode(token, 'secret', algorithms='HS256')
-        print(payload)
-        id = payload['id']
-        print(id, '------>id')
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={'REQUEST_METHOD': 'POST',
-                     'CONTENT_TYPE': self.headers['Content-Type'],
-                     })
-        data = {}
-        data['tittle'] = form['tittle'].value
-        data['description'] = form['description'].value
-        data['color'] = form['color'].value
-        data['is_pinned'] = form['is_pinned'].value
-        data['is_archived'] = form['is_archived'].value
-        data['is_trashed'] = form['is_trashed'].value
-        data['user_id'] = id
-        object.query_insert(data)
-        response_data = {'success': True, "data": [], "message": "Inserted Successfully"}
-        Response(self).jsonResponse(status=404, data=response_data)
 
-    def update_note(self):
-        """
-        Here record is Updated in table and response is shown
-        no return:return:
-        """
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={'REQUEST_METHOD': 'POST',
-                     'CONTENT_TYPE': self.headers['Content-Type'],
-                     })
-        data = {}
-        data['id'] = form['id'].value
-        data['tittle'] = form['tittle'].value
-        object.query_update(data)
-        response_data = {'success': True, "data": [], "message": "Updated Successfully"}
-        Response(self).jsonResponse(status=404, data=response_data)
 
-    def delete_note(self):
+    # def update_notes(self):
+    #     """
+    #     Here record is Updated in table and response is shown
+    #     no return:return:
+    #     """
+    #     form = cgi.FieldStorage(
+    #         fp=self.rfile,
+    #         headers=self.headers,
+    #         environ={'REQUEST_METHOD': 'POST',
+    #                  'CONTENT_TYPE': self.headers['Content-Type'],
+    #                  })
+    #     data = {}
+    #     data['id'] = form['id'].value
+    #     data['tittle'] = form['tittle'].value
+    #     response_data = obj_note.update_note(data)
+    #     return response_data
+
+    def delete_notes(self):
         """
         Here record is Deleted in table and response is shown
         no return:return:
@@ -200,16 +148,15 @@ class user:
                      })
         data = {}
         data['id'] = form['id'].value
-        object.query_delete(data)
-        response_data = {'success': True, "data": [], "message": "Deleted Successfully"}
-        Response(self).jsonResponse(status=404, data=response_data)
+        response_data = obj_note.delete_note(data)
+        return response_data
 
     def read_note(self):
         """
         Here record is Read in table and response is shown
         no return:return:
         """
-        object = DbManaged()
+        object = model()
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -218,7 +165,6 @@ class user:
                      })
         data = {}
         data['tablename'] = form['tablename'].value
-        print(data)
         object.query_read(data)
         response_data = {'success': True, "data": [], "message": "Read Successfully"}
         Response(self).jsonResponse(status=404, data=response_data)
@@ -236,9 +182,43 @@ class user:
                      })
         data = {}
         data['tablename'] = form['tablename'].value
-        object.query_create(data)
+        obj_model.query_create(data)
         response_data = {'success': True, "data": [], "message": "created table Successfully"}
         Response(self).jsonResponse(status=404, data=response_data)
+
+    def updateProfile(self):
+        token = self.headers['token']
+        payload = jwt.decode(token, "secret", algorithms='HS256')
+        id = payload['id']
+        ctype, pdict = cgi.parse_header(self.headers.get('content-type'))
+        pdict['boundary'] = bytes(pdict['boundary'], "utf-8")
+        if ctype == 'multipart/form-data':
+            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={'REQUEST_METHOD': 'POST',
+                                                                                  'CONTENT_TYPE': self.headers[
+                                                                                      'Content-Type'], })
+
+            filename = form['upfile'].filename
+            data = form['upfile'].file.read()
+            open("./media/%s" % filename, "wb").write(data)
+            profile_data = {
+                'profile_path': f'./media/{filename}',
+                'id': id
+            }
+            flag = my_val.validate_file_extension(profile_data)
+            check = my_val.validate_file_size(profile_data)
+            if flag and check:
+                obj_user.profile(profile_data)
+                response_data = {'success': True, "data": [], "message": "Profile Updated Successfully"}
+                return response_data
+            else:
+                response_data = {'success': True, "data": [], "message": "Unsupported file extension"}
+                return response_data
+
+    def listing_notes(self):
+        reaminders = obj_model.remainders()
+        archive = obj_model.archives()
+        trash = obj_model.trashed()
+        return reaminders, archive, trash
 
     # def authenticate_user(self, catch):
     #     """
@@ -266,47 +246,3 @@ class user:
     #         # return 'Invalid token. Please log in again.'
     #         response_data = {'success': False, "data": [], "message": "Invalid token. Please log in again."}
     #         Response(self).jsonResponse(status=404, data=response_data)
-
-    def updateProfile(self):
-        object = DbManaged()
-        print(self.headers['token'], '---->token')
-        token = self.headers['token']
-        payload = jwt.decode(token, 'secret', algorithms='HS256')
-        print(payload)
-        id = payload['id']
-        print(id, '------>id')
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={'REQUEST_METHOD': 'POST',
-                     'CONTENT_TYPE': self.headers['Content-Type'],
-                     })
-        data = {}
-        # pdb.set_trace()
-        data['profile_path'] = form['profile_path'].value
-        data['user_id'] = id
-        key = data['user_id']
-        # image = base64.b64encode(data['path'])
-        # valid_image = image.decode("utf-8")
-        flag = object.validate_file_extension(data)
-        check = object.validate_file_size(data)
-        # valid_image = image.decode("utf-8")
-        # sql = "INSERT INTO Picture(path) VALUES (%s)"
-        # val = (data['path'])
-        # # obj = db_connection()
-        # my_db_obj.queryExecute(sql, val)
-        object.update_profile(data, key)
-        # print(flag)
-        # print(check)
-        if flag and check:
-            response_data = {'success': True, "data": [], "message": "Profile Updated Successfully"}
-            Response(self).jsonResponse(status=404, data=response_data)
-        else:
-            response_data = {'success': True, "data": [], "message": "Unsupported file extension"}
-            Response(self).jsonResponse(status=404, data=response_data)
-
-    def listing_notes(self):
-        reaminders = object.list_remainders()
-        archive = object.list_archives()
-        trash = object.list_trash()
-        return reaminders, archive, trash
