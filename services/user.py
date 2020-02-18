@@ -33,6 +33,7 @@ class Users:
                 return response_data
 
     def login(self, id):
+        response_data = {'success': True, "data": [], "message": ""}
         if id:
             payload = {
                 'id': id,
@@ -46,7 +47,9 @@ class Users:
             response_data = response(success=True, message="Login Successfully", data=[{
                 "token": encoded_token
             }])
-
+            return response_data
+        else:
+            response_data.update({'success': False, "data": [], "message": "First Register User"})
         return response_data
 
     def forgot(self, schema, host, data, present):
@@ -60,7 +63,7 @@ class Users:
             obj = smtp()
             obj.SmtpConnect(data, message)
             response_data.update({"success": True, "message": "Successfully sent mail"})
-        return response_data
+            return response_data
 
     def reset(self, data, key):
         object.update_password(data, key)

@@ -3,13 +3,13 @@ from view.response import Response
 from models.dbmanipulate import model
 from config.redis_connection import RedisService
 
+
 def response(success=False, message='something went wrong', data=[]):
     response = {'success': success,
                 "message": message,
                 "data": data, }
 
     return response
-
 
 
 def is_authenticated(method):
@@ -25,7 +25,7 @@ def is_authenticated(method):
             if self.path in ['/api/note/insert', '/api/note/delete', '/api/note/update']:
                 token = self.headers['token']
                 payload = jwt.decode(token, "secret", algorithms='HS256')
-                id= payload['id']
+                id = payload['id']
                 redis_obj = RedisService()
                 token = redis_obj.get(id)
                 if token is None:
